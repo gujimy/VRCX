@@ -709,7 +709,9 @@
         
         isLoadingRoomCards.value = true;
         try {
-            const publicFriends = onlineFriends.value.filter(f => f.ref?.location?.startsWith('wrld_'));
+            // Include both favorite friends and regular online friends
+            const allOnlineFriends = [...vipFriends.value, ...onlineFriends.value];
+            const publicFriends = allOnlineFriends.filter(f => f.ref?.location?.startsWith('wrld_'));
             
             const locationGroups = new Map();
             for (const friend of publicFriends) {
@@ -837,9 +839,11 @@
     }
 
     function sortRoomCards(a, b) {
-        // Calculate favorite friend count
-        const aFavoriteCount = a.users.filter(u => u.isFavorite).length + (a.$location.user?.isFavorite ? 1 : 0);
-        const bFavoriteCount = b.users.filter(u => u.isFavorite).length + (b.$location.user?.isFavorite ? 1 : 0);
+        // Calculate favorite friend count using friendStore.localFavoriteFriends
+        const aFavoriteCount = a.users.filter(u => friendStore.localFavoriteFriends.has(u.id)).length +
+                               (a.$location.user && friendStore.localFavoriteFriends.has(a.$location.userId) ? 1 : 0);
+        const bFavoriteCount = b.users.filter(u => friendStore.localFavoriteFriends.has(u.id)).length +
+                               (b.$location.user && friendStore.localFavoriteFriends.has(b.$location.userId) ? 1 : 0);
         
         // Calculate total friend count
         const aTotalCount = a.users.length + (a.$location.user ? 1 : 0);
@@ -866,11 +870,13 @@
     }, { immediate: true });
 
     watch(
-        () => onlineFriends.value,
+        [() => onlineFriends.value, () => vipFriends.value],
         () => {
             if (!isOnlineView.value) return;
             
-            const publicFriends = onlineFriends.value.filter(f => f.ref?.location?.startsWith('wrld_'));
+            // Include both favorite friends and regular online friends
+            const allOnlineFriends = [...vipFriends.value, ...onlineFriends.value];
+            const publicFriends = allOnlineFriends.filter(f => f.ref?.location?.startsWith('wrld_'));
             const locationGroups = new Map();
             
             for (const friend of publicFriends) {
