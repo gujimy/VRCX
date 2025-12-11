@@ -235,7 +235,7 @@
     import { useI18n } from 'vue-i18n';
 
     import { getFriendsLocations, parseLocation } from '../../shared/utils/location.js';
-    import { userImage, userStatusClass } from '../../shared/utils';
+    import { userImage, userStatusClass, timeToText } from '../../shared/utils';
     import { refreshInstancePlayerCount } from '../../shared/utils/instance.js';
     import { useFriendStore, useUserStore, useWorldStore, useInstanceStore } from '../../stores';
     import worldReq from '../../api/world.js';
@@ -796,14 +796,7 @@
         if (!timestamp) return '-';
         const now = Date.now();
         const diff = now - timestamp;
-        const minutes = Math.floor(diff / 60000);
-        const hours = Math.floor(diff / 3600000);
-        const days = Math.floor(diff / 86400000);
-        
-        if (minutes < 1) return 'Just now';
-        if (minutes < 60) return `${minutes}m ago`;
-        if (hours < 24) return `${hours}h ago`;
-        return `${days}d ago`;
+        return timeToText(diff);
     }
 
     const refreshingRooms = ref(new Set());
