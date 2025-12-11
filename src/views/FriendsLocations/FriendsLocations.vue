@@ -144,7 +144,7 @@
                                     <InstanceInfo
                                         :location="room.location"
                                         :instance="room.instance"
-                                        :friendcount="room.users.length"
+                                        :friendcount="room.friendCount"
                                         :class="{ 'room-full': room.instance?.capacity && room.users.length + 1 >= room.instance.capacity }" />
                                 </div>
                                 <div
@@ -165,10 +165,20 @@
                                                 :style="{ color: room.$location.user.$userColour }"
                                                 v-text="room.$location.user.displayName" />
                                             <span class="extra">
-                                                <span v-if="room.$location.user.$location_at">
-                                                    {{ timeAgo(room.$location.user.$location_at) }}
-                                                </span>
-                                                <span v-else>{{ t('dialog.user.info.instance_creator') }}</span>
+                                                <template v-if="room.$location.user.location === 'traveling'">
+                                                    <el-icon class="is-loading" style="margin-right: 3px">
+                                                        <Loading />
+                                                    </el-icon>
+                                                    <span v-if="room.$location.user.$travelingToTime">
+                                                        {{ timeAgo(room.$location.user.$travelingToTime) }}
+                                                    </span>
+                                                </template>
+                                                <template v-else>
+                                                    <span v-if="room.$location.user.$location_at">
+                                                        {{ timeAgo(room.$location.user.$location_at) }}
+                                                    </span>
+                                                    <span v-else>{{ t('dialog.user.info.instance_creator') }}</span>
+                                                </template>
                                             </span>
                                         </div>
                                     </div>
@@ -187,12 +197,47 @@
                                                 :style="{ color: user.$userColour }"
                                                 v-text="user.displayName" />
                                             <span class="extra">
-                                                <span v-if="user.$location_at">
-                                                    {{ timeAgo(user.$location_at) }}
-                                                </span>
-                                                <span v-else>-</span>
+                                                <template v-if="user.location === 'traveling'">
+                                                    <el-icon class="is-loading" style="margin-right: 3px">
+                                                        <Loading />
+                                                    </el-icon>
+                                                    <span v-if="user.$travelingToTime">
+                                                        {{ timeAgo(user.$travelingToTime) }}
+                                                    </span>
+                                                </template>
+                                                <template v-else>
+                                                    <span v-if="user.$location_at">
+                                                        {{ timeAgo(user.$location_at) }}
+                                                    </span>
+                                                    <span v-else>-</span>
+                                                </template>
                                             </span>
                                         </div>
+                                    </div>
+                                </div>
+                                <!-- Traveling users section -->
+                                <div
+                                    v-for="travelingUser in room.travelingUsers"
+                                    :key="'traveling-' + travelingUser.id"
+                                    class="x-friend-item x-friend-item-border traveling-user"
+                                    style="cursor: pointer"
+                                    @click="userStore.showUserDialog(travelingUser.id)">
+                                    <div class="avatar" :class="userStatusClass(travelingUser)">
+                                        <img :src="userImage(travelingUser, true)" loading="lazy" />
+                                    </div>
+                                    <div class="detail">
+                                        <span
+                                            class="name"
+                                            :style="{ color: travelingUser.$userColour }"
+                                            v-text="travelingUser.displayName" />
+                                        <span class="extra">
+                                            <el-icon class="is-loading" style="margin-right: 3px">
+                                                <Loading />
+                                            </el-icon>
+                                            <span v-if="travelingUser.$travelingToTime">
+                                                {{ timeAgo(travelingUser.$travelingToTime) }}
+                                            </span>
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -711,15 +756,35 @@
         try {
             // Include both favorite friends and regular online friends
             const allOnlineFriends = [...vipFriends.value, ...onlineFriends.value];
-            const publicFriends = allOnlineFriends.filter(f => f.ref?.location?.startsWith('wrld_'));
             
             const locationGroups = new Map();
-            for (const friend of publicFriends) {
-                const location = friend.ref.location;
-                if (!locationGroups.has(location)) {
-                    locationGroups.set(location, []);
+            const travelingUsers = new Map(); // Track users traveling to each location
+            
+            for (const friend of allOnlineFriends) {
+                const location = friend.ref?.location;
+                const travelingTo = friend.ref?.travelingToLocation;
+                
+                // Add users with public locations to their current room
+                if (location && location.startsWith('wrld_')) {
+                    if (!locationGroups.has(location)) {
+                        locationGroups.set(location, []);
+                    }
+                    locationGroups.get(location).push(friend.ref);
                 }
-                locationGroups.get(location).push(friend.ref);
+                
+                // Add traveling users to their destination room
+                if (location === 'traveling' && travelingTo && travelingTo.startsWith('wrld_')) {
+                    // Ensure the destination room exists in locationGroups
+                    if (!locationGroups.has(travelingTo)) {
+                        locationGroups.set(travelingTo, []);
+                    }
+                    
+                    // Track traveling users separately
+                    if (!travelingUsers.has(travelingTo)) {
+                        travelingUsers.set(travelingTo, []);
+                    }
+                    travelingUsers.get(travelingTo).push(friend.ref);
+                }
             }
 
             // Phase 1: Immediately create all room cards (without detailed data) for fast rendering
@@ -742,10 +807,15 @@
                     ? users.filter(u => u.id !== L.userId)
                     : users;
                 
+                // Calculate friendCount: users + owner (if owner is a friend)
+                const friendCount = filteredUsers.length + (L.user ? 1 : 0);
+                
                 cards.push({
                     location,
                     $location: L,
                     users: filteredUsers,
+                    travelingUsers: travelingUsers.get(location) || [],
+                    friendCount,
                     instance: null,
                     world: null
                 });
@@ -822,7 +892,7 @@
                 console.error('Failed to refresh instance:', e);
             }
 
-            ElMessage.success(t('view.friend_list.refresh_success'));
+            ElMessage.success(t('api.status_code.200'));
         } catch (error) {
             console.error('Failed to refresh room:', error);
             ElMessage.error(t('view.friend_list.refresh_failed'));
@@ -869,15 +939,34 @@
             
             // Include both favorite friends and regular online friends
             const allOnlineFriends = [...vipFriends.value, ...onlineFriends.value];
-            const publicFriends = allOnlineFriends.filter(f => f.ref?.location?.startsWith('wrld_'));
             const locationGroups = new Map();
+            const travelingUsers = new Map();
             
-            for (const friend of publicFriends) {
-                const location = friend.ref.location;
-                if (!locationGroups.has(location)) {
-                    locationGroups.set(location, []);
+            for (const friend of allOnlineFriends) {
+                const location = friend.ref?.location;
+                const travelingTo = friend.ref?.travelingToLocation;
+                
+                // Add users with public locations to their current room
+                if (location && location.startsWith('wrld_')) {
+                    if (!locationGroups.has(location)) {
+                        locationGroups.set(location, []);
+                    }
+                    locationGroups.get(location).push(friend.ref);
                 }
-                locationGroups.get(location).push(friend.ref);
+                
+                // Add traveling users to their destination room
+                if (location === 'traveling' && travelingTo && travelingTo.startsWith('wrld_')) {
+                    // Ensure the destination room exists in locationGroups
+                    if (!locationGroups.has(travelingTo)) {
+                        locationGroups.set(travelingTo, []);
+                    }
+                    
+                    // Track traveling users separately
+                    if (!travelingUsers.has(travelingTo)) {
+                        travelingUsers.set(travelingTo, []);
+                    }
+                    travelingUsers.get(travelingTo).push(friend.ref);
+                }
             }
 
             const existingLocations = new Map(roomCards.value.map(card => [card.location, card]));
@@ -903,6 +992,8 @@
                         ? users.filter(u => u.id !== L.userId)
                         : users;
                     card.$location = L;
+                    card.travelingUsers = travelingUsers.get(location) || [];
+                    card.friendCount = card.users.length + (L.user ? 1 : 0);
                     updatedCards.push(card);
                     existingLocations.delete(location);
                 } else {
@@ -918,10 +1009,13 @@
                         }
                     }
                     
+                    const filteredNewUsers = isCreatorFriend && L.user ? users.filter(u => u.id !== L.userId) : users;
                     const newCard = {
                         location,
                         $location: L,
-                        users: isCreatorFriend && L.user ? users.filter(u => u.id !== L.userId) : users,
+                        users: filteredNewUsers,
+                        travelingUsers: travelingUsers.get(location) || [],
+                        friendCount: filteredNewUsers.length + (L.user ? 1 : 0),
                         instance: null,
                         world: null
                     };
@@ -1326,5 +1420,35 @@
 
     .flags.jp {
         background-position: -16px -11px;
+
+    /* Traveling user styles */
+    .traveling-user {
+        opacity: 0.7;
+        border-left: 3px solid var(--el-color-warning) !important;
+    }
+
+    .traveling-user .avatar {
+        position: relative;
+    }
+
+    .traveling-user .avatar::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        border: 2px solid var(--el-color-warning);
+        animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+        50% {
+            opacity: 0.5;
+            transform: scale(1.1);
+        }
+    }
     }
 </style>
