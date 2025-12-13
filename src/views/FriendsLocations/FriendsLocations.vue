@@ -99,83 +99,98 @@
                         </div>
                     </div>
                 </div>
-                <div v-else-if="roomCards.length">
+                <div v-else-if="roomCards.length" class="room-cards-grid" :style="roomCardsGridStyle">
                     <div
-                        v-for="room in roomCards"
-                        :key="room.location"
-                        class="room-card"
-                        :class="{ 'room-card--full': room.instance?.capacity && room.users.length + 1 >= room.instance.capacity }">
-                        <div class="room-card__content">
-                            <div class="room-card__thumbnail">
+                        v-for="worldCard in roomCards"
+                        :key="worldCard.worldId"
+                        class="world-card"
+                        :style="worldCardStyle">
+                        <!-- World header with thumbnail and title only -->
+                        <div class="world-card__header">
+                            <div class="world-card__thumbnail">
                                 <img
-                                    v-if="room.world"
-                                    :src="room.world.thumbnailImageUrl"
-                                    class="room-card__image x-link"
-                                    @click="showWorldDialog(room.world.id)"
+                                    v-if="worldCard.world"
+                                    :src="worldCard.world.thumbnailImageUrl"
+                                    class="world-card__image x-link"
+                                    @click="showWorldDialog(worldCard.worldId)"
                                     loading="lazy" />
                             </div>
-                            <div class="room-card__details">
-                                <div class="flex-align-center">
+                            <div class="world-card__info">
+                                <div class="world-card__title">
                                     <span
-                                        v-if="room.world"
-                                        class="x-link"
-                                        style="margin-right: 5px"
-                                        @click="showWorldDialog(room.world.id)"
-                                        v-text="room.world.name" />
-                                    <LocationWorld
-                                        :locationobject="room.$location"
-                                        :currentuserid="currentUser.id"
-                                        :worlddialogshortname="room.world?.name || ''" />
-                                    <Launch :location="room.location" style="margin-left: 5px" />
-                                    <InviteYourself
-                                        :location="room.location"
-                                        :shortname="room.instance?.shortName || room.instance?.secureName"
-                                        style="margin-left: 5px" />
-                                    <el-tooltip placement="top" :content="t('view.friend_list.refresh_tooltip')">
-                                        <el-button
-                                            size="small"
-                                            :icon="Refresh"
-                                            :loading="refreshingRooms.has(room.location)"
-                                            :disabled="refreshingRooms.has(room.location)"
-                                            style="margin-left: 5px"
-                                            circle
-                                            @click="refreshRoom(room.location)" />
-                                    </el-tooltip>
-                                    <InstanceInfo
-                                        :location="room.location"
-                                        :instance="room.instance"
-                                        :friendcount="room.friendCount"
-                                        :class="{ 'room-full': room.instance?.capacity && room.users.length + 1 >= room.instance.capacity }" />
+                                        v-if="worldCard.world"
+                                        class="world-card__name x-link"
+                                        :title="worldCard.world.name"
+                                        @click="showWorldDialog(worldCard.worldId)"
+                                        v-text="worldCard.world.name" />
                                 </div>
-                                <div
-                                    v-if="room.$location.userId && room.$location.user || room.users.length"
-                                    class="x-friend-list"
-                                    style="margin: 10px 0; max-height: unset; display: flex; flex-wrap: wrap; gap: 5px">
+                            </div>
+                        </div>
+                        <!-- Instances list -->
+                        <div class="world-card__instances">
+                            <div
+                                v-for="instance in worldCard.instances"
+                                :key="instance.location"
+                                class="instance-section">
+                                <!-- Instance info line with actions -->
+                                <div class="instance-section__info">
+                                    <span class="instance-section__number">#{{ instance.$location.instanceId?.split('~')[0] || '' }}</span>
+                                    <el-tooltip
+                                        v-if="instance.$location.groupId && instance.groupName"
+                                        placement="top"
+                                        :content="instance.groupName">
+                                        <span
+                                            class="instance-section__privacy has-group-info"
+                                            :class="getPrivacyColorClass(getInstancePrivacy(instance.$location.instanceId))"
+                                            @click="groupStore.showGroupDialog(instance.$location.groupId)">
+                                            {{ getInstancePrivacy(instance.$location.instanceId) }}
+                                        </span>
+                                    </el-tooltip>
+                                    <span
+                                        v-else
+                                        class="instance-section__privacy"
+                                        :class="getPrivacyColorClass(getInstancePrivacy(instance.$location.instanceId))">
+                                        {{ getInstancePrivacy(instance.$location.instanceId) }}
+                                    </span>
+                                    <span v-if="instance.$location.region" :class="['flags', instance.$location.region]"></span>
+                                    <span
+                                        class="instance-section__capacity"
+                                        :class="{ 'instance-section__capacity--full': instance.instance?.capacity && (instance.instance.userCount || 0) >= instance.instance.capacity }">
+                                        ({{ (instance.instance?.userCount || 0) }}/{{ (worldCard.world?.capacity || 0) }})
+                                    </span>
+                                    <div class="instance-section__actions">
+                                        <Launch :location="instance.location" />
+                                        <InviteYourself
+                                            :location="instance.location"
+                                            :shortname="instance.instance?.shortName || instance.instance?.secureName" />
+                                    </div>
+                                </div>
+                                <!-- Friends list for this instance -->
+                                <div class="instance-section__friends">
                                     <div
-                                        v-if="room.$location.userId && room.$location.user"
-                                        class="x-friend-item x-friend-item-border"
-                                        style="cursor: pointer"
-                                        @click="userStore.showUserDialog(room.$location.userId)">
-                                        <div class="avatar" :class="userStatusClass(room.$location.user)">
-                                            <img :src="userImage(room.$location.user, true)" loading="lazy" />
+                                        v-if="instance.$location.userId && instance.$location.user"
+                                        class="instance-friend"
+                                        @click="userStore.showUserDialog(instance.$location.userId)">
+                                        <div class="avatar" :class="userStatusClass(instance.$location.user)">
+                                            <img :src="userImage(instance.$location.user, true)" loading="lazy" />
                                         </div>
                                         <div class="detail">
                                             <span
                                                 class="name"
-                                                :style="{ color: room.$location.user.$userColour }"
-                                                v-text="room.$location.user.displayName" />
+                                                :style="{ color: instance.$location.user.$userColour }"
+                                                v-text="instance.$location.user.displayName" />
                                             <span class="extra">
-                                                <template v-if="room.$location.user.location === 'traveling'">
+                                                <template v-if="instance.$location.user.location === 'traveling'">
                                                     <el-icon class="is-loading" style="margin-right: 3px">
                                                         <Loading />
                                                     </el-icon>
-                                                    <span v-if="room.$location.user.$travelingToTime">
-                                                        {{ timeAgo(room.$location.user.$travelingToTime) }}
+                                                    <span v-if="instance.$location.user.$travelingToTime">
+                                                        {{ timeAgo(instance.$location.user.$travelingToTime) }}
                                                     </span>
                                                 </template>
                                                 <template v-else>
-                                                    <span v-if="room.$location.user.$location_at">
-                                                        {{ timeAgo(room.$location.user.$location_at) }}
+                                                    <span v-if="instance.$location.user.$location_at">
+                                                        {{ timeAgo(instance.$location.user.$location_at) }}
                                                     </span>
                                                     <span v-else>{{ t('dialog.user.info.instance_creator') }}</span>
                                                 </template>
@@ -183,10 +198,9 @@
                                         </div>
                                     </div>
                                     <div
-                                        v-for="user in room.users"
+                                        v-for="user in instance.users"
                                         :key="user.id"
-                                        class="x-friend-item x-friend-item-border"
-                                        style="cursor: pointer"
+                                        class="instance-friend"
                                         @click="userStore.showUserDialog(user.id)">
                                         <div class="avatar" :class="userStatusClass(user)">
                                             <img :src="userImage(user, true)" loading="lazy" />
@@ -214,30 +228,28 @@
                                             </span>
                                         </div>
                                     </div>
-                                </div>
-                                <!-- Traveling users section -->
-                                <div
-                                    v-for="travelingUser in room.travelingUsers"
-                                    :key="'traveling-' + travelingUser.id"
-                                    class="x-friend-item x-friend-item-border traveling-user"
-                                    style="cursor: pointer"
-                                    @click="userStore.showUserDialog(travelingUser.id)">
-                                    <div class="avatar" :class="userStatusClass(travelingUser)">
-                                        <img :src="userImage(travelingUser, true)" loading="lazy" />
-                                    </div>
-                                    <div class="detail">
-                                        <span
-                                            class="name"
-                                            :style="{ color: travelingUser.$userColour }"
-                                            v-text="travelingUser.displayName" />
-                                        <span class="extra">
-                                            <el-icon class="is-loading" style="margin-right: 3px">
-                                                <Loading />
-                                            </el-icon>
-                                            <span v-if="travelingUser.$travelingToTime">
-                                                {{ timeAgo(travelingUser.$travelingToTime) }}
+                                    <div
+                                        v-for="travelingUser in instance.travelingUsers"
+                                        :key="'traveling-' + travelingUser.id"
+                                        class="instance-friend traveling-user"
+                                        @click="userStore.showUserDialog(travelingUser.id)">
+                                        <div class="avatar" :class="userStatusClass(travelingUser)">
+                                            <img :src="userImage(travelingUser, true)" loading="lazy" />
+                                        </div>
+                                        <div class="detail">
+                                            <span
+                                                class="name"
+                                                :style="{ color: travelingUser.$userColour }"
+                                                v-text="travelingUser.displayName" />
+                                            <span class="extra">
+                                                <el-icon class="is-loading" style="margin-right: 3px">
+                                                    <Loading />
+                                                </el-icon>
+                                                <span v-if="travelingUser.$travelingToTime">
+                                                    {{ timeAgo(travelingUser.$travelingToTime) }}
+                                                </span>
                                             </span>
-                                        </span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -274,7 +286,7 @@
 
 <script setup>
     import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-    import { Loading, Search, Refresh } from '@element-plus/icons-vue';
+    import { Loading, Search, InfoFilled } from '@element-plus/icons-vue';
     import { ElMessage } from 'element-plus';
     import { storeToRefs } from 'pinia';
     import { useI18n } from 'vue-i18n';
@@ -282,7 +294,7 @@
     import { getFriendsLocations, parseLocation } from '../../shared/utils/location.js';
     import { userImage, userStatusClass, timeToText } from '../../shared/utils';
     import { refreshInstancePlayerCount } from '../../shared/utils/instance.js';
-    import { useFriendStore, useUserStore, useWorldStore, useInstanceStore } from '../../stores';
+    import { useFriendStore, useUserStore, useWorldStore, useInstanceStore, useLaunchStore, useGroupStore } from '../../stores';
     import worldReq from '../../api/world.js';
     import instanceReq from '../../api/instance.js';
 
@@ -301,6 +313,8 @@
     const worldStore = useWorldStore();
     const { showWorldDialog } = worldStore;
     const instanceStore = useInstanceStore();
+    const launchStore = useLaunchStore();
+    const groupStore = useGroupStore();
     const { onlineFriends, vipFriends, activeFriends, offlineFriends, friendsInSameInstance } =
         storeToRefs(friendStore);
 
@@ -624,6 +638,29 @@
         };
     });
 
+    const roomCardsGridStyle = computed(() => {
+        const scale = cardScale.value;
+        const spacing = cardSpacing.value;
+        const baseMinWidth = 240;
+        const baseGap = 12;
+        
+        return {
+            '--world-card-min-width': `${Math.round(baseMinWidth * scale)}px`,
+            '--world-card-gap': `${Math.round(baseGap * spacing)}px`
+        };
+    });
+
+    const worldCardStyle = computed(() => {
+        const scale = cardScale.value;
+        const spacing = cardSpacing.value;
+        
+        return {
+            '--world-card-scale': scale.toFixed(2),
+            '--world-card-spacing': spacing.toFixed(2),
+            'margin-bottom': `${Math.round(12 * spacing)}px`
+        };
+    });
+
     const handleScroll = () => {
         if (
             isLoadingMore.value ||
@@ -754,17 +791,16 @@
         
         isLoadingRoomCards.value = true;
         try {
-            // Include both favorite friends and regular online friends
             const allOnlineFriends = [...vipFriends.value, ...onlineFriends.value];
             
+            // Group by location first
             const locationGroups = new Map();
-            const travelingUsers = new Map(); // Track users traveling to each location
+            const travelingUsers = new Map();
             
             for (const friend of allOnlineFriends) {
                 const location = friend.ref?.location;
                 const travelingTo = friend.ref?.travelingToLocation;
                 
-                // Add users with public locations to their current room
                 if (location && location.startsWith('wrld_')) {
                     if (!locationGroups.has(location)) {
                         locationGroups.set(location, []);
@@ -772,14 +808,10 @@
                     locationGroups.get(location).push(friend.ref);
                 }
                 
-                // Add traveling users to their destination room
                 if (location === 'traveling' && travelingTo && travelingTo.startsWith('wrld_')) {
-                    // Ensure the destination room exists in locationGroups
                     if (!locationGroups.has(travelingTo)) {
                         locationGroups.set(travelingTo, []);
                     }
-                    
-                    // Track traveling users separately
                     if (!travelingUsers.has(travelingTo)) {
                         travelingUsers.set(travelingTo, []);
                     }
@@ -787,10 +819,26 @@
                 }
             }
 
-            // Phase 1: Immediately create all room cards (without detailed data) for fast rendering
-            const cards = [];
+            // Group instances by world ID
+            const worldGroups = new Map();
+            
             for (const [location, users] of locationGroups) {
                 const L = parseLocation(location);
+                const worldId = L.worldId;
+                
+                // Ensure region is set
+                if (!L.region && L.instanceId) {
+                    L.region = 'us'; // Default to US if no region specified
+                }
+                
+                if (!worldGroups.has(worldId)) {
+                    worldGroups.set(worldId, {
+                        worldId,
+                        instances: [],
+                        world: null,
+                        totalFriends: 0
+                    });
+                }
                 
                 let isCreatorFriend = false;
                 if (L.userId) {
@@ -807,51 +855,96 @@
                     ? users.filter(u => u.id !== L.userId)
                     : users;
                 
-                // Calculate friendCount: users + owner (if owner is a friend)
                 const friendCount = filteredUsers.length + (L.user ? 1 : 0);
                 
-                cards.push({
+                worldGroups.get(worldId).instances.push({
                     location,
                     $location: L,
                     users: filteredUsers,
                     travelingUsers: travelingUsers.get(location) || [],
                     friendCount,
                     instance: null,
-                    world: null
+                    groupName: null
                 });
+                
+                worldGroups.get(worldId).totalFriends += friendCount;
             }
 
-            cards.sort(sortRoomCards);
+            const cards = Array.from(worldGroups.values());
+            // Sort by: 1. Total friends, 2. Instance count, 3. Favorite friends count
+            cards.sort((a, b) => {
+                // Priority 1: Total friends
+                if (a.totalFriends !== b.totalFriends) {
+                    return b.totalFriends - a.totalFriends;
+                }
+                
+                // Priority 2: Instance count (more rooms = more priority)
+                const aInstanceCount = a.instances.length;
+                const bInstanceCount = b.instances.length;
+                if (aInstanceCount !== bInstanceCount) {
+                    return bInstanceCount - aInstanceCount;
+                }
+                
+                // Priority 3: Favorite friends count
+                const aFavoriteCount = a.instances.reduce((sum, inst) => {
+                    const users = inst.users || [];
+                    const favCount = users.filter(u => friendStore.localFavoriteFriends.has(u.id)).length;
+                    return sum + favCount + (inst.$location.user && friendStore.localFavoriteFriends.has(inst.$location.userId) ? 1 : 0);
+                }, 0);
+                const bFavoriteCount = b.instances.reduce((sum, inst) => {
+                    const users = inst.users || [];
+                    const favCount = users.filter(u => friendStore.localFavoriteFriends.has(u.id)).length;
+                    return sum + favCount + (inst.$location.user && friendStore.localFavoriteFriends.has(inst.$location.userId) ? 1 : 0);
+                }, 0);
+                
+                if (aFavoriteCount !== bFavoriteCount) {
+                    return bFavoriteCount - aFavoriteCount;
+                }
+                
+                // Priority 4: World ID (for stability)
+                return a.worldId.localeCompare(b.worldId);
+            });
+            
             roomCards.value = cards;
             isLoadingRoomCards.value = false;
 
-            // Phase 2: Load detailed data for all rooms in parallel
+            // Load world and instance data in parallel
             await Promise.all(
                 cards.map(async (card) => {
-                    const L = card.$location;
+                    const worldData = await worldReq.getCachedWorld({
+                        worldId: card.worldId
+                    }).catch(err => {
+                        console.error('Failed to load world:', err);
+                        return null;
+                    });
                     
-                    // Load instance and world data in parallel
-                    const [instanceData, worldData] = await Promise.allSettled([
-                        instanceReq.getCachedInstance({
-                            worldId: L.worldId,
-                            instanceId: L.instanceId
-                        }),
-                        worldReq.getCachedWorld({
-                            worldId: L.worldId
+                    if (worldData) {
+                        card.world = worldData.ref;
+                    }
+                    
+                    await Promise.all(
+                        card.instances.map(async (inst) => {
+                            const instanceData = await instanceReq.getCachedInstance({
+                                worldId: inst.$location.worldId,
+                                instanceId: inst.$location.instanceId
+                            }).catch(err => {
+                                console.error('Failed to load instance:', err);
+                                return null;
+                            });
+                            
+                            if (instanceData) {
+                                inst.instance = instanceData.ref;
+                            }
+                            
+                            // Load group name if groupId exists
+                            if (inst.$location.groupId) {
+                                const group = groupStore.cachedGroups.get(inst.$location.groupId);
+                                if (group && group.name) {
+                                    inst.groupName = group.name;
+                                }
+                            }
                         })
-                    ]);
-
-                    if (instanceData.status === 'fulfilled') {
-                        card.instance = instanceData.value.ref;
-                    } else {
-                        console.error('Failed to load instance:', instanceData.reason);
-                    }
-
-                    if (worldData.status === 'fulfilled') {
-                        card.world = worldData.value.ref;
-                    } else {
-                        console.error('Failed to load world:', worldData.reason);
-                    }
+                    );
                 })
             );
         } catch (error) {
@@ -867,38 +960,6 @@
         const now = Date.now();
         const diff = now - timestamp;
         return timeToText(diff);
-    }
-
-    const refreshingRooms = ref(new Set());
-
-    async function refreshRoom(location) {
-        if (refreshingRooms.value.has(location)) return;
-        
-        refreshingRooms.value.add(location);
-        try {
-            await refreshInstancePlayerCount(location);
-            
-            const targetCard = roomCards.value.find(card => card.location === location);
-            if (!targetCard) return;
-
-            const L = parseLocation(location);
-            try {
-                const instanceData = await instanceReq.getCachedInstance({
-                    worldId: L.worldId,
-                    instanceId: L.instanceId
-                });
-                targetCard.instance = instanceData.ref;
-            } catch (e) {
-                console.error('Failed to refresh instance:', e);
-            }
-
-            ElMessage.success(t('api.status_code.200'));
-        } catch (error) {
-            console.error('Failed to refresh room:', error);
-            ElMessage.error(t('view.friend_list.refresh_failed'));
-        } finally {
-            refreshingRooms.value.delete(location);
-        }
     }
 
     function sortRoomCards(a, b) {
@@ -926,6 +987,49 @@
         return a.location.localeCompare(b.location);
     }
 
+    // Helper function to get instance privacy type (without group name)
+    function getInstancePrivacy(instanceId) {
+        if (!instanceId) return 'public';
+        
+        const parts = instanceId.split('~');
+        if (parts.length <= 1) return 'public';
+        
+        const privacyPart = parts[1];
+        if (privacyPart.startsWith('hidden')) return 'friends+';
+        if (privacyPart.startsWith('friends')) return 'friends';
+        if (privacyPart.startsWith('private')) return 'invite';
+        if (privacyPart.startsWith('group')) {
+            // Extract only the access type, remove group name in parentheses
+            const groupMatch = privacyPart.match(/^group\(([^)]+)\)/);
+            if (groupMatch) {
+                const accessType = groupMatch[1];
+                if (accessType === 'plus') return 'group+';
+                if (accessType === 'members') return 'group';
+                return 'group public';
+            }
+            return 'group public';
+        }
+        return 'public';
+    }
+
+    function getPrivacyColorClass(privacyType) {
+        switch (privacyType) {
+            case 'friends':
+            case 'friends+':
+                return 'privacy-friends';
+            case 'public':
+            case 'group public':
+                return 'privacy-public';
+            case 'group':
+            case 'group+':
+                return 'privacy-group';
+            case 'invite':
+                return 'privacy-invite';
+            default:
+                return '';
+        }
+    }
+
     watch(isOnlineView, (isOnline) => {
         if (isOnline) {
             nextTick(() => loadRoomCards());
@@ -937,7 +1041,6 @@
         () => {
             if (!isOnlineView.value) return;
             
-            // Include both favorite friends and regular online friends
             const allOnlineFriends = [...vipFriends.value, ...onlineFriends.value];
             const locationGroups = new Map();
             const travelingUsers = new Map();
@@ -946,7 +1049,6 @@
                 const location = friend.ref?.location;
                 const travelingTo = friend.ref?.travelingToLocation;
                 
-                // Add users with public locations to their current room
                 if (location && location.startsWith('wrld_')) {
                     if (!locationGroups.has(location)) {
                         locationGroups.set(location, []);
@@ -954,14 +1056,10 @@
                     locationGroups.get(location).push(friend.ref);
                 }
                 
-                // Add traveling users to their destination room
                 if (location === 'traveling' && travelingTo && travelingTo.startsWith('wrld_')) {
-                    // Ensure the destination room exists in locationGroups
                     if (!locationGroups.has(travelingTo)) {
                         locationGroups.set(travelingTo, []);
                     }
-                    
-                    // Track traveling users separately
                     if (!travelingUsers.has(travelingTo)) {
                         travelingUsers.set(travelingTo, []);
                     }
@@ -969,86 +1067,127 @@
                 }
             }
 
-            const existingLocations = new Map(roomCards.value.map(card => [card.location, card]));
-            const updatedCards = [];
+            // Group instances by world ID
+            const worldGroups = new Map();
             
             for (const [location, users] of locationGroups) {
-                let card = existingLocations.get(location);
+                const L = parseLocation(location);
+                const worldId = L.worldId;
                 
-                if (card) {
-                    const L = parseLocation(location);
-                    let isCreatorFriend = false;
-                    if (L.userId) {
-                        const user = userStore.cachedUsers.get(L.userId);
-                        if (user) {
-                            isCreatorFriend = users.some(u => u.id === L.userId);
-                            if (isCreatorFriend) {
-                                L.user = user;
-                            }
-                        }
-                    }
-                    
-                    card.users = isCreatorFriend && L.user
-                        ? users.filter(u => u.id !== L.userId)
-                        : users;
-                    card.$location = L;
-                    card.travelingUsers = travelingUsers.get(location) || [];
-                    card.friendCount = card.users.length + (L.user ? 1 : 0);
-                    updatedCards.push(card);
-                    existingLocations.delete(location);
-                } else {
-                    const L = parseLocation(location);
-                    let isCreatorFriend = false;
-                    if (L.userId) {
-                        const user = userStore.cachedUsers.get(L.userId);
-                        if (user) {
-                            isCreatorFriend = users.some(u => u.id === L.userId);
-                            if (isCreatorFriend) {
-                                L.user = user;
-                            }
-                        }
-                    }
-                    
-                    const filteredNewUsers = isCreatorFriend && L.user ? users.filter(u => u.id !== L.userId) : users;
-                    const newCard = {
-                        location,
-                        $location: L,
-                        users: filteredNewUsers,
-                        travelingUsers: travelingUsers.get(location) || [],
-                        friendCount: filteredNewUsers.length + (L.user ? 1 : 0),
-                        instance: null,
-                        world: null
-                    };
-                    
-                    // Load detailed data for new card in parallel
-                    Promise.allSettled([
-                        instanceReq.getCachedInstance({
-                            worldId: L.worldId,
-                            instanceId: L.instanceId
-                        }),
-                        worldReq.getCachedWorld({
-                            worldId: L.worldId
-                        })
-                    ]).then(([instanceData, worldData]) => {
-                        if (instanceData.status === 'fulfilled') {
-                            newCard.instance = instanceData.value.ref;
-                        } else {
-                            console.error('Failed to load instance:', instanceData.reason);
-                        }
-                        
-                        if (worldData.status === 'fulfilled') {
-                            newCard.world = worldData.value.ref;
-                        } else {
-                            console.error('Failed to load world:', worldData.reason);
-                        }
+                // Ensure region is set
+                if (!L.region && L.instanceId) {
+                    L.region = 'us'; // Default to US if no region specified
+                }
+                
+                if (!worldGroups.has(worldId)) {
+                    worldGroups.set(worldId, {
+                        worldId,
+                        instances: [],
+                        world: null,
+                        totalFriends: 0
                     });
-                    
-                    updatedCards.push(newCard);
+                }
+                
+                let isCreatorFriend = false;
+                if (L.userId) {
+                    const user = userStore.cachedUsers.get(L.userId);
+                    if (user) {
+                        isCreatorFriend = users.some(u => u.id === L.userId);
+                        if (isCreatorFriend) {
+                            L.user = user;
+                        }
+                    }
+                }
+                
+                const filteredUsers = isCreatorFriend && L.user
+                    ? users.filter(u => u.id !== L.userId)
+                    : users;
+                
+                const friendCount = filteredUsers.length + (L.user ? 1 : 0);
+                
+                const existingWorld = roomCards.value.find(w => w.worldId === worldId);
+                const existingInstance = existingWorld?.instances.find(i => i.location === location);
+                
+                worldGroups.get(worldId).instances.push({
+                    location,
+                    $location: L,
+                    users: filteredUsers,
+                    travelingUsers: travelingUsers.get(location) || [],
+                    friendCount,
+                    instance: existingInstance?.instance || null,
+                    groupName: existingInstance?.groupName || null
+                });
+                
+                worldGroups.get(worldId).totalFriends += friendCount;
+                if (existingWorld?.world) {
+                    worldGroups.get(worldId).world = existingWorld.world;
                 }
             }
+
+            const cards = Array.from(worldGroups.values());
+            // Sort by: 1. Total friends, 2. Instance count, 3. Favorite friends count
+            cards.sort((a, b) => {
+                // Priority 1: Total friends
+                if (a.totalFriends !== b.totalFriends) {
+                    return b.totalFriends - a.totalFriends;
+                }
+                
+                // Priority 2: Instance count (more rooms = more priority)
+                const aInstanceCount = a.instances.length;
+                const bInstanceCount = b.instances.length;
+                if (aInstanceCount !== bInstanceCount) {
+                    return bInstanceCount - aInstanceCount;
+                }
+                
+                // Priority 3: Favorite friends count
+                const aFavoriteCount = a.instances.reduce((sum, inst) => {
+                    const users = inst.users || [];
+                    const favCount = users.filter(u => friendStore.localFavoriteFriends.has(u.id)).length;
+                    return sum + favCount + (inst.$location.user && friendStore.localFavoriteFriends.has(inst.$location.userId) ? 1 : 0);
+                }, 0);
+                const bFavoriteCount = b.instances.reduce((sum, inst) => {
+                    const users = inst.users || [];
+                    const favCount = users.filter(u => friendStore.localFavoriteFriends.has(u.id)).length;
+                    return sum + favCount + (inst.$location.user && friendStore.localFavoriteFriends.has(inst.$location.userId) ? 1 : 0);
+                }, 0);
+                
+                if (aFavoriteCount !== bFavoriteCount) {
+                    return bFavoriteCount - aFavoriteCount;
+                }
+                
+                // Priority 4: World ID (for stability)
+                return a.worldId.localeCompare(b.worldId);
+            });
             
-            updatedCards.sort(sortRoomCards);
-            roomCards.value = updatedCards;
+            roomCards.value = cards;
+            
+            // Load missing world and instance data
+            cards.forEach(card => {
+                if (!card.world) {
+                    worldReq.getCachedWorld({ worldId: card.worldId }).then(data => {
+                        card.world = data.ref;
+                    }).catch(err => console.error('Failed to load world:', err));
+                }
+                
+                card.instances.forEach((inst) => {
+                    if (!inst.instance) {
+                        instanceReq.getCachedInstance({
+                            worldId: inst.$location.worldId,
+                            instanceId: inst.$location.instanceId
+                        }).then(data => {
+                            inst.instance = data.ref;
+                        }).catch(err => console.error('Failed to load instance:', err));
+                    }
+                    
+                    // Load group name if needed
+                    if (inst.$location.groupId && !inst.groupName) {
+                        const group = groupStore.cachedGroups.get(inst.$location.groupId);
+                        if (group && group.name) {
+                            inst.groupName = group.name;
+                        }
+                    }
+                });
+            });
         },
         { deep: true }
     );
@@ -1092,7 +1231,7 @@
     });
 </script>
 
-<style scoped lang="scss">
+<style lang="scss">
     .friend-view {
         display: grid;
         grid-template-rows: auto 1fr;
@@ -1256,16 +1395,7 @@
     }
 
     .friend-view__loading-icon {
-        animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-        from {
-            transform: rotate(0);
-        }
-        to {
-            transform: rotate(360deg);
-        }
+        animation: rotating 2s linear infinite;
     }
 
     .flex-align-center {
@@ -1273,62 +1403,307 @@
         align-items: center;
     }
 
-    /* Room card styles */
-    .room-card {
-        margin: 8px 0;
-        padding: 12px;
+    /* World cards grid - Masonry layout */
+    .room-cards-grid {
+        column-count: auto;
+        column-width: var(--world-card-min-width, 240px);
+        column-gap: var(--world-card-gap, 12px);
+        padding: 2px;
+    }
+    
+    .room-cards-grid .world-card {
+        break-inside: avoid;
+        margin-bottom: var(--world-card-gap, 12px);
+        display: inline-block;
+        width: 100%;
+    }
+
+    /* World card container */
+    .world-card {
+        --world-card-scale: 1;
+        --world-card-spacing: 1;
         background: var(--el-bg-color);
         border: 1px solid var(--el-border-color-light);
-        border-radius: 12px;
+        border-radius: calc(10px * var(--world-card-scale));
+        overflow: hidden;
         transition: all 0.2s ease;
     }
 
-    .room-card:hover {
+    .world-card:hover {
         border-color: var(--el-color-primary);
-        box-shadow: 0 4px 12px rgba(102, 177, 255, 0.15);
-        transform: translateY(-2px);
+        box-shadow: 0 calc(4px * var(--world-card-scale)) calc(12px * var(--world-card-scale)) rgba(102, 177, 255, 0.15);
+        transform: translateY(calc(-2px * var(--world-card-scale)));
     }
 
-    .room-card--full {
-        opacity: 0.7;
-    }
-
-    .room-card--full:hover {
-        border-color: var(--el-color-danger);
-        box-shadow: 0 4px 12px rgba(245, 108, 108, 0.15);
-    }
-
-    .room-card__content {
+    /* World card header */
+    .world-card__header {
         display: flex;
-        gap: 12px;
+        gap: calc(12px * var(--world-card-spacing));
+        padding: calc(12px * var(--world-card-scale) * var(--world-card-spacing));
+        border-bottom: 1px solid var(--el-border-color-lighter);
     }
 
-    .room-card__thumbnail {
-        position: relative;
+    .world-card__thumbnail {
         flex: none;
-        width: 120px;
-        height: 90px;
+        width: calc(72px * var(--world-card-scale));
+        height: calc(48px * var(--world-card-scale));
+        border-radius: calc(6px * var(--world-card-scale));
+        overflow: hidden;
     }
 
-    .room-card__image {
+    .world-card__image {
         width: 100%;
         height: 100%;
-        border-radius: 8px;
         object-fit: cover;
         transition: transform 0.2s ease;
+        cursor: pointer;
     }
 
-    .room-card:hover .room-card__image {
+    .world-card__image:hover {
         transform: scale(1.05);
     }
 
-    .room-full {
-        color: var(--el-color-danger) !important;
-    }
-
-    .room-card__details {
+    .world-card__info {
         flex: 1;
         min-width: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .world-card__title {
+        font-weight: 600;
+        font-size: calc(15px * var(--world-card-scale));
+        line-height: 1.4;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .world-card__name {
+        cursor: pointer;
+        color: var(--el-text-color-primary);
+    }
+
+    .world-card__name:hover {
+        text-decoration: underline;
+        color: var(--el-color-primary);
+    }
+
+    /* Instances section */
+    .world-card__instances {
+        padding: calc(8px * var(--world-card-scale)) calc(12px * var(--world-card-scale)) calc(12px * var(--world-card-scale));
+        display: flex;
+        flex-direction: column;
+        gap: calc(12px * var(--world-card-spacing));
+    }
+
+    .instance-section {
+        display: flex;
+        flex-direction: column;
+        gap: calc(6px * var(--world-card-spacing));
+    }
+
+    .instance-section__info {
+        display: flex;
+        align-items: center;
+        gap: calc(6px * var(--world-card-spacing));
+        font-size: calc(13px * var(--world-card-scale));
+        font-weight: 500;
+        padding: calc(6px * var(--world-card-spacing)) 0;
+        border-bottom: 1px solid var(--el-border-color-lighter);
+    }
+
+    .instance-section__number {
+        color: var(--el-text-color-primary);
+        font-size: calc(12px * var(--world-card-scale));
+        flex-shrink: 0;
+    }
+
+    .instance-section__privacy {
+        font-size: calc(11px * var(--world-card-scale));
+        flex-shrink: 1;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 500;
+    }
+
+    .instance-section__privacy.privacy-friends {
+        color: #ff9500;
+    }
+
+    .instance-section__privacy.privacy-public {
+        color: #67c23a;
+    }
+
+    .instance-section__privacy.privacy-group {
+        color: #a367ff;
+    }
+
+    .instance-section__privacy.privacy-invite {
+        color: var(--el-text-color-secondary);
+    }
+
+    .instance-section__privacy.has-group-info {
+        cursor: pointer;
+        transition: color 0.2s ease;
+    }
+
+    .instance-section__privacy.has-group-info:hover {
+        color: var(--el-color-primary);
+    }
+
+    .instance-section__capacity {
+        color: var(--el-text-color-secondary);
+    }
+
+    .instance-section__capacity--full {
+        color: var(--el-color-danger);
+        font-weight: 600;
+    }
+
+    .instance-section__actions {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: calc(4px * var(--world-card-spacing));
+    }
+
+    .instance-section__info .flags {
+        transform: scale(calc(0.75 * var(--world-card-scale)));
+        display: inline-block;
+        flex-shrink: 0;
+        margin-left: calc(-2px * var(--world-card-scale));
+    }
+
+
+    /* Instance friends list */
+    .instance-section__friends {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(calc(100px * var(--world-card-scale)), 1fr));
+        gap: calc(6px * var(--world-card-spacing));
+    }
+
+    .instance-friend {
+        display: flex;
+        align-items: center;
+        gap: calc(6px * var(--world-card-spacing));
+        padding: calc(4px * var(--world-card-scale));
+        background: var(--el-fill-color-light);
+        border-radius: calc(6px * var(--world-card-scale));
+        cursor: pointer;
+        transition: all 0.2s ease;
+        min-width: 0;
+    }
+
+    .instance-friend:hover {
+        background: var(--el-fill-color);
+        transform: translateX(calc(2px * var(--world-card-scale)));
+    }
+
+    .instance-friend .avatar {
+        width: calc(28px * var(--world-card-scale));
+        height: calc(28px * var(--world-card-scale));
+        border-radius: 50%;
+        flex-shrink: 0;
+        overflow: visible;
+        position: relative;
+    }
+
+    .instance-friend .avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+    }
+
+    .instance-friend .avatar.active::after,
+    .instance-friend .avatar.online::after,
+    .instance-friend .avatar.joinme::after,
+    .instance-friend .avatar.askme::after,
+    .instance-friend .avatar.busy::after,
+    .instance-friend .avatar.offline::after {
+        position: absolute;
+        right: calc(-2px * var(--world-card-scale));
+        bottom: calc(-2px * var(--world-card-scale));
+        width: calc(10px * var(--world-card-scale));
+        height: calc(10px * var(--world-card-scale));
+        content: '';
+        background: #909399;
+        border-radius: 50%;
+        border: calc(2px * var(--world-card-scale)) solid var(--el-fill-color-light);
+        box-sizing: border-box;
+    }
+
+    .instance-friend .avatar.active::after {
+        background: #f4e05e;
+    }
+
+    .instance-friend .avatar.online::after {
+        background: #67c23a;
+    }
+
+    .instance-friend .avatar.joinme::after {
+        background: #409eff;
+        mask-image: url(../../assets/images/masks/joinme.svg);
+    }
+
+    .instance-friend .avatar.askme::after {
+        background: #ff9500;
+        mask-image: url(../../assets/images/masks/askme.svg);
+    }
+
+    .instance-friend .avatar.busy::after {
+        background: #ff2c2c;
+        mask-image: url(../../assets/images/masks/busy.svg);
+    }
+
+    .instance-friend .avatar.offline::after {
+        background: #909399;
+    }
+
+    .instance-friend .avatar.online.mobile::after,
+    .instance-friend .avatar.joinme.mobile::after,
+    .instance-friend .avatar.askme.mobile::after,
+    .instance-friend .avatar.busy.mobile::after {
+        position: absolute;
+        right: calc(-2px * var(--world-card-scale));
+        bottom: calc(-2px * var(--world-card-scale));
+        width: calc(11px * var(--world-card-scale));
+        height: calc(11px * var(--world-card-scale));
+        content: '';
+        border-radius: 0px;
+        mask-image: url(../../assets/images/masks/phone.svg);
+        border: calc(2px * var(--world-card-scale)) solid var(--el-fill-color-light);
+        box-sizing: border-box;
+    }
+
+    .instance-friend .detail {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: calc(2px * var(--world-card-spacing));
+    }
+
+    .instance-friend .name {
+        font-size: calc(12px * var(--world-card-scale));
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .instance-friend .extra {
+        font-size: calc(10px * var(--world-card-scale));
+        color: var(--el-text-color-secondary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: flex;
+        align-items: center;
     }
 
     /* Loading skeleton */
@@ -1395,32 +1770,6 @@
         border-radius: 50%;
     }
 
-    /* Flag icon styles */
-    .flags {
-        display: inline-block;
-        width: 16px;
-        height: 11px;
-        background: url('/src/assets/images/flags.png') no-repeat;
-        background-size: 96px;
-        vertical-align: middle;
-    }
-
-    .flags.us,
-    .flags.usw {
-        background-position: 0 0;
-    }
-
-    .flags.use {
-        background-position: -16px -44px;
-    }
-
-    .flags.eu {
-        background-position: -32px -44px;
-    }
-
-    .flags.jp {
-        background-position: -16px -11px;
-
     /* Traveling user styles */
     .traveling-user {
         opacity: 0.7;
@@ -1450,5 +1799,5 @@
             transform: scale(1.1);
         }
     }
-    }
 </style>
+
