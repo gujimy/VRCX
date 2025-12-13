@@ -99,9 +99,9 @@
                         </div>
                     </div>
                 </div>
-                <div v-else-if="roomCards.length" class="room-cards-grid" :style="roomCardsGridStyle">
+                <div v-else-if="filteredRoomCards.length" class="room-cards-grid" :style="roomCardsGridStyle">
                     <div
-                        v-for="worldCard in roomCards"
+                        v-for="worldCard in filteredRoomCards"
                         :key="worldCard.worldId"
                         class="world-card"
                         :style="worldCardStyle">
@@ -785,6 +785,43 @@
     const isLoadingRoomCards = ref(false);
 
     const isOnlineView = computed(() => activeSegment.value === 'online');
+
+    const filteredRoomCards = computed(() => {
+        if (!normalizedSearchTerm.value) {
+            return roomCards.value;
+        }
+
+        const searchLower = normalizedSearchTerm.value;
+        
+        return roomCards.value
+            .map(worldCard => {
+                const worldMatches = worldCard.world?.name?.toLowerCase().includes(searchLower);
+                
+                const filteredInstances = worldCard.instances.filter(instance => {
+                    const userMatches = instance.users.some(user =>
+                        user.displayName?.toLowerCase().includes(searchLower)
+                    );
+                    
+                    const creatorMatches = instance.$location.user?.displayName?.toLowerCase().includes(searchLower);
+                    
+                    const travelingMatches = instance.travelingUsers.some(user =>
+                        user.displayName?.toLowerCase().includes(searchLower)
+                    );
+                    
+                    return userMatches || creatorMatches || travelingMatches;
+                });
+                
+                if (worldMatches || filteredInstances.length > 0) {
+                    return {
+                        ...worldCard,
+                        instances: filteredInstances.length > 0 ? filteredInstances : worldCard.instances
+                    };
+                }
+                
+                return null;
+            })
+            .filter(Boolean);
+    });
 
     async function loadRoomCards() {
         if (isLoadingRoomCards.value) return;
